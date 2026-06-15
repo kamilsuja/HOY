@@ -419,7 +419,27 @@ const server = http.createServer(async (req, res) => {
       if (evt.type === 'checkout.session.completed' || evt.type === 'checkout.session.async_payment_succeeded') {
         const o = evt.data && evt.data.object ? evt.data.object : {};
         const ref = o.client_reference_id || (o.metadata && o.metadata.bookingId);
-        if (ref) { const b = await db.getBooking(ref); if (b) { b.paymentStatus = 'paid'; b.paidAt = Date.now(); await db.updateBooking(b); } }
+        if (ref) {
+          const b = await db.getBooking(ref);
+          if (b) {
+            b.paymentStatus = 'paid'; b.paidAt = Date.now();
+            // Send the confirmation now that payment succeeded — once only (Stripe may retry the webhook).
+            if (PROVIDERS_ON && !b.notifiedPaid) {
+              b.notifiedPaid = true;
+              const payload = {
+                ref: b.id, title: b.listingTitle, city: b.city, when: b.when, guests: b.guestsLabel,
+                total: b.total, payout: b.payout, exp: b.isExperience, currency: b.currency,
+                checkIn: b.checkIn, checkOut: b.checkOut,
+                host: { name: b.host && b.host.name, evc: b.host && b.host.evc },
+              };
+              const guestParty = { channel: b.guestChannel || (isEmail(b.guestContact) ? 'email' : 'text'), to: b.guestContact };
+              const hostParty = { channel: (b.host && b.host.notify) || 'email', to: (b.host && b.host.notify === 'text' ? b.host.phone : b.host.email) };
+              queue.enqueue(() => notify.sendToParty(guestParty, payload, false), { label: 'paid notify guest ' + b.id });
+              queue.enqueue(() => notify.sendToParty(hostParty, payload, true), { label: 'paid notify host ' + b.id });
+            }
+            await db.updateBooking(b);
+          }
+        }
       }
       return json(res, 200, { received: true });
     }
@@ -967,7 +987,7 @@ async function createBooking(res, contact, body, req) {
   const booking = {
     id: ref, listingId, listingTitle: item.title, city: item.city || item.loc, isExperience, isService,
     host: { id: host.id, name: host.name, email: host.email, phone: host.phone, notify: host.notify, evc: host.evc },
-    guestContact: contact, when, checkIn: checkIn || null, checkOut: checkOut || null, checkInTime: checkInTime || null,
+    guestContact: contact, guestChannel: guestChannel || null, when, checkIn: checkIn || null, checkOut: checkOut || null, checkInTime: checkInTime || null,
     guests, guestsLabel, currency, ...pricing,
     status: instant ? 'held' : 'requested',
     messages: [], createdAt: new Date().toISOString(),
@@ -984,13 +1004,20 @@ async function createBooking(res, contact, body, req) {
     const payload = {
       ref, title: item.title, city: booking.city, when, guests: guestsLabel,
       total: pricing.total, payout: pricing.payout, exp: isExperience, currency,
+      checkIn: checkIn || null, checkOut: checkOut || null,
       host: { name: host.name, evc: host.evc },
     };
     const guestParty = { channel: guestChannel || (isEmail(contact) ? 'email' : 'text'), to: contact };
     const hostParty = { channel: host.notify || 'email', to: (host.notify === 'text' ? host.phone : host.email) };
-    queue.enqueue(() => notify.sendToParty(guestParty, payload, false), { label: 'notify guest ' + ref });
-    queue.enqueue(() => notify.sendToParty(hostParty, payload, true), { label: 'notify host ' + ref });
-    notifications = 'queued';
+    if (instant) {
+      // Instant booking: the guest's confirmation is sent after payment succeeds
+      // (see the Stripe webhook). Nothing is emailed at this point.
+      notifications = 'deferred to payment';
+    } else {
+      queue.enqueue(() => notify.sendToParty(guestParty, payload, false), { label: 'notify guest ' + ref });
+      queue.enqueue(() => notify.sendToParty(hostParty, payload, true), { label: 'notify host ' + ref });
+      notifications = 'queued';
+    }
   }
 
   console.log('[booking] created', ref, '· listing', listingId, '· instant:', instant, '· requested:', !instant);

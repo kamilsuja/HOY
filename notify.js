@@ -59,6 +59,45 @@ function esc(s) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Calendar helpers — Google Calendar link + .ics (Apple/Android/Outlook)
+ * ------------------------------------------------------------------ */
+function calPad(n) { return String(n).padStart(2, '0'); }
+function calYMD(ts) { const d = new Date(ts); return '' + d.getFullYear() + calPad(d.getMonth() + 1) + calPad(d.getDate()); }
+function icsEscape(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+// Derive an all-day calendar event from a booking payload. Returns null if no date.
+function calEventFromBooking(b) {
+  let start = b.checkIn ? new Date(b.checkIn).getTime() : null;
+  if (!start || isNaN(start)) return null;
+  let end = b.checkOut ? new Date(b.checkOut).getTime() : null;
+  if (!end || isNaN(end)) end = start + 86400000;
+  return {
+    title: 'Hoy · ' + (b.title || 'Booking'),
+    location: b.exp ? '' : (b.city || ''),
+    startTs: start, endTs: end,
+    details: 'Hoy booking ' + (b.ref || '') + (b.host && b.host.name ? (' · Host ' + b.host.name) : ''),
+  };
+}
+function googleCalUrl(ev) {
+  const start = calYMD(ev.startTs), endEx = calYMD(ev.endTs || ev.startTs + 86400000);
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + '&text=' + encodeURIComponent(ev.title)
+    + '&dates=' + start + '/' + endEx
+    + '&details=' + encodeURIComponent(ev.details || '')
+    + (ev.location ? '&location=' + encodeURIComponent(ev.location) : '');
+}
+function icsForEvent(ev) {
+  const start = calYMD(ev.startTs), endEx = calYMD(ev.endTs || ev.startTs + 86400000);
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Hoy//Booking//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    'UID:hoy-' + start + '-' + Math.random().toString(36).slice(2, 8) + '@hoy.app',
+    'DTSTAMP:' + calYMD(Date.now()) + 'T000000Z',
+    'DTSTART;VALUE=DATE:' + start, 'DTEND;VALUE=DATE:' + endEx,
+    'SUMMARY:' + icsEscape(ev.title)]
+    .concat(ev.location ? ['LOCATION:' + icsEscape(ev.location)] : [])
+    .concat(ev.details ? ['DESCRIPTION:' + icsEscape(ev.details)] : [])
+    .concat(['END:VEVENT', 'END:VCALENDAR']).join('\r\n');
+}
+
+/* ------------------------------------------------------------------ *
  * Message templates (ported from the prototype)
  * ------------------------------------------------------------------ */
 
@@ -90,6 +129,15 @@ function bookingEmailHTML(b, forHost) {
     ? `<a href="${esc(APP_URL)}/dashboard" style="display:inline-block;margin-top:18px;background:#C25A38;color:#fff;text-decoration:none;padding:11px 20px;border-radius:30px;font-weight:700;font-size:14px">Open host dashboard</a>`
     : `<a href="${esc(APP_URL)}/trips" style="display:inline-block;margin-top:18px;background:#C25A38;color:#fff;text-decoration:none;padding:11px 20px;border-radius:30px;font-weight:700;font-size:14px">View my trip</a>`;
 
+  let calBlock = '';
+  if (!forHost) {
+    const ev = calEventFromBooking(b);
+    if (ev) {
+      calBlock = `<div style="margin-top:14px"><a href="${esc(googleCalUrl(ev))}" style="display:inline-block;background:#0E5454;color:#fff;text-decoration:none;padding:10px 18px;border-radius:30px;font-weight:700;font-size:13px">📅 Add to Google Calendar</a></div>
+      <p style="font-size:12px;color:#8a7d6a;margin:9px 0 0">📎 A calendar file (.ics) is attached — open it on your phone to add this to your Apple or Android calendar.</p>`;
+    }
+  }
+
   return `<!doctype html><html><body style="margin:0;background:#FAF4E9;padding:24px 12px">
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:440px;margin:0 auto;border:1px solid #E2D6C2;border-radius:14px;overflow:hidden;background:#fff">
     <div style="background:#0E5454;color:#fff;padding:18px 22px;font-size:20px;font-weight:700">Hoy</div>
@@ -106,6 +154,7 @@ function bookingEmailHTML(b, forHost) {
       </table>
       ${note}
       ${cta}
+      ${calBlock}
       <p style="font-size:11px;color:#8a7d6a;margin:18px 0 0">Sent by Hoy · Questions? Reply to this email or visit Help &amp; safety in the app.</p>
     </div>
   </div></body></html>`;
@@ -127,15 +176,17 @@ function hostSMS(b) {
  * Channel senders
  * ------------------------------------------------------------------ */
 
-async function sendEmail(to, subject, html) {
+async function sendEmail(to, subject, html, attachments) {
   if (!RESEND_API_KEY) throw new Error('RESEND_API_KEY is not set');
+  const payload = { from: RESEND_FROM, to: [to], subject, html };
+  if (attachments && attachments.length) payload.attachments = attachments;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
   return res.json(); // { id: '...' }
@@ -171,7 +222,12 @@ async function notifyParty(party, booking, forHost) {
     : `Your Hoy booking is confirmed — ${booking.ref}`;
 
   if (party.channel === 'email') {
-    const r = await sendEmail(party.to, subject, bookingEmailHTML(booking, forHost));
+    let attachments;
+    if (!forHost) {
+      const ev = calEventFromBooking(booking);
+      if (ev) attachments = [{ filename: 'hoy-booking.ics', content: Buffer.from(icsForEvent(ev)).toString('base64') }];
+    }
+    const r = await sendEmail(party.to, subject, bookingEmailHTML(booking, forHost), attachments);
     return { channel: 'email', to: party.to, id: r.id };
   }
   // default to text
