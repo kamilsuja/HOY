@@ -1,0 +1,17 @@
+{
+  "name": "Hoy — Somali Stays",
+  "short_name": "Hoy",
+  "description": "Book homes, experiences, and services across Somalia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF4E9",
+  "theme_color": "#FAF4E9",
+  "categories": ["travel", "lifestyle", "shopping"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

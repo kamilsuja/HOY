@@ -1,0 +1,15 @@
+{
+  "name": "hoy-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hoy MVP backend — auth, listings, bookings (escrow + fees), notifications, uploads, ID verification.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "pg": "^8.11.0"
+  }
+}
