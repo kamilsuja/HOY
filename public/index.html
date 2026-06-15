@@ -2085,16 +2085,22 @@
 
   // ===== WISHLIST / SAVED =====
   let wishlist=[], currentIdx=-1;
-  function isSaved(kind,idx){return wishlist.some(w=>w.kind===kind&&w.idx===idx);}
+  // services are keyed by stable id; stays/experiences by array index
+  function isSaved(kind,key){return wishlist.some(w=>w.kind===kind&&(kind==='service'?w.id===key:w.idx===key));}
   function heartBtn(kind,idx){const on=isSaved(kind,idx);return `<button class="savebtn${on?' on':''}" onclick="event.stopPropagation();toggleSave('${kind}',${idx})">${on?'<span style="color:var(--clay)">♥</span>':'<span style="color:#fff">♡</span>'}</button>`;}
-  function toggleSave(kind,idx){
-    const i=wishlist.findIndex(w=>w.kind===kind&&w.idx===idx);
-    if(i>-1)wishlist.splice(i,1);else wishlist.push({kind,idx});
+  function heartBtnSvc(id){const on=isSaved('service',id);return `<button class="savebtn${on?' on':''}" onclick="event.stopPropagation();toggleSave('service','${id}')">${on?'<span style="color:var(--clay)">♥</span>':'<span style="color:#fff">♡</span>'}</button>`;}
+  function toggleSave(kind,key){
+    const i=wishlist.findIndex(w=>w.kind===kind&&(kind==='service'?w.id===key:w.idx===key));
+    if(i>-1)wishlist.splice(i,1);else wishlist.push(kind==='service'?{kind,id:key}:{kind,idx:key});
+    persistWishlist();
     if(document.getElementById('home').classList.contains('active'))render();
     if(document.getElementById('experiences').classList.contains('active'))renderExp();
+    if(document.getElementById('services').classList.contains('active'))renderServices();
     if(document.getElementById('saved').classList.contains('active'))renderSaved();
     syncDetailSave();
   }
+  function persistWishlist(){try{localStorage.setItem('hoy_wishlist',JSON.stringify(wishlist));}catch(e){}}
+  function restoreWishlist(){try{const w=JSON.parse(localStorage.getItem('hoy_wishlist')||'[]');if(Array.isArray(w))wishlist=w;}catch(e){}}
   function toggleSaveCurrent(){if(currentIdx<0||!current)return;toggleSave(current.kind,currentIdx);}
   function syncDetailSave(){
     ['dSaveBtn','edSaveBtn'].forEach(id=>{const b=document.getElementById(id);if(!b||currentIdx<0||!current)return;const on=isSaved(current.kind,currentIdx);b.innerHTML=on?'♥ Saved':'♡ Save';b.style.color=on?'var(--clay)':'var(--ink)';b.style.borderColor=on?'var(--clay)':'var(--ink)';});
@@ -2275,8 +2281,13 @@
   function openSaved(){closeAcctMenu();renderSaved();go('saved');window.scrollTo(0,0);}
   function renderSaved(){
     const wrap=document.getElementById('savedRows');
-    if(!wishlist.length){wrap.innerHTML='<div class="empty" style="padding:46px 20px"><div class="ei">🤍</div><b>No saved listings yet</b>Tap the heart on any home or experience to save it here.</div>';return;}
+    if(!wishlist.length){wrap.innerHTML='<div class="empty" style="padding:46px 20px"><div class="ei">🤍</div><b>No saved listings yet</b>Tap the heart on any home, experience, or service to save it here.</div>';return;}
     wrap.innerHTML='<div class="grid">'+wishlist.map(w=>{
+      if(w.kind==='service'){
+        const it=findProvider(w.id); if(!it)return '';
+        const from=Math.min(...it.options.map(o=>o.price));
+        return `<div class="card" onclick="openServiceProvider('${w.id}')"><div class="photo" style="background:${it.g}"><div class="grain"></div>${heartBtnSvc(it.id)}</div><h3>${it.options[0].name}</h3><div class="meta">${tr('Service')} · ${tr('From')} ${money(from)}</div></div>`;
+      }
       const it=w.kind==='stay'?stays[w.idx]:experiences[w.idx];
       if(!it)return '';
       const open=w.kind==='stay'?`openDetail(${w.idx})`:`openExpDetail(${w.idx})`;
@@ -3029,9 +3040,31 @@
 
   // ===== MY TRIPS =====
   let myTrips=[];
-  function openTrips(){
+  function findListingById(id){
+    const f=arr=>arr&&arr.find(x=>x.id===id);
+    return f(stays)||f(experiences)||(typeof allProviders==='function'?allProviders().find(p=>p.id===id):null)||null;
+  }
+  function mapServerTrip(b){
+    const f=d=>new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const dates=(b.checkIn&&b.checkOut)?f(b.checkIn)+' – '+f(b.checkOut):(b.when||'—');
+    const host=(b.host&&b.host.name)||'Host';
+    const local=findListingById(b.listingId);
+    const g=(local&&local.g)||'linear-gradient(135deg,#0E5454,#1B8A8A)';
+    const status=b.status==='requested'?'Requested':(b.status==='cancelled'?'Cancelled':'Confirmed');
+    return {
+      title:b.listingTitle||b.listingId, city:b.city||'', g, host, init:(host||'?').charAt(0),
+      dates, guests:b.guestsLabel||(b.guests?(b.guests+' guests'):''),
+      status, b:{ref:b.id, status:(b.status==='released'?'released':'held'), paymentStatus:b.paymentStatus},
+      listingRef:null, range:(b.checkIn&&b.checkOut)?[startOfDay(b.checkIn).getTime(),startOfDay(b.checkOut).getTime()]:null
+    };
+  }
+  async function openTrips(){
     closeAcctMenu();
     if(!loggedIn){afterLogin=openTrips;openAuth();return;}
+    if(apiOn){
+      try{ const list=await api('/bookings'); if(Array.isArray(list)) myTrips=list.map(mapServerTrip); }
+      catch(e){/* keep whatever is in memory */}
+    }
     renderTrips(); go('trips'); window.scrollTo(0,0);
   }
   function renderTrips(){
@@ -3820,7 +3853,7 @@
   function serviceCard(p){
     const from=Math.min(...p.options.map(o=>o.price));
     const pop=p.popular?`<div class="gf-badge">${tr('Popular')}</div>`:'';
-    return `<div class="hcard" onclick="openServiceProvider('${p.id}')"><div class="hphoto" style="background:${p.g}"><div class="grain"></div>${pop}<button class="savebtn" onclick="event.stopPropagation();toast('Saved to your wishlist')"><span style="color:#fff">♡</span></button></div><div class="hcard-t">${p.options[0].name}</div><div class="hcard-s">${tr('From')} <b>${money(from)}</b> / ${tr('guest')} · ★ ${p.rate}</div></div>`;
+    return `<div class="hcard" onclick="openServiceProvider('${p.id}')"><div class="hphoto" style="background:${p.g}"><div class="grain"></div>${pop}${heartBtnSvc(p.id)}</div><div class="hcard-t">${p.options[0].name}</div><div class="hcard-s">${tr('From')} <b>${money(from)}</b> / ${tr('guest')} · ★ ${p.rate}</div></div>`;
   }
   let spProvider=null, spOption=0;
   function openServiceProvider(id){
@@ -4125,6 +4158,7 @@
 
   showConnBadge();
   updatePrefLabel();
+  restoreWishlist();
   renderHome();
   updateTabbar('home');
   // PWA: register the service worker (only works when served over http/https, not file://)
