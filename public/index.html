@@ -2093,7 +2093,7 @@
     const i=wishlist.findIndex(w=>w.kind===kind&&(kind==='service'?w.id===key:w.idx===key));
     if(i>-1)wishlist.splice(i,1);else wishlist.push(kind==='service'?{kind,id:key}:{kind,idx:key});
     persistWishlist();
-    if(document.getElementById('home').classList.contains('active'))render();
+    if(document.getElementById('home').classList.contains('active'))renderHome();
     if(document.getElementById('experiences').classList.contains('active'))renderExp();
     if(document.getElementById('services').classList.contains('active'))renderServices();
     if(document.getElementById('saved').classList.contains('active'))renderSaved();
