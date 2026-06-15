@@ -61,12 +61,14 @@
     .apptop{padding-top:calc(10px + env(safe-area-inset-top,0px))}
   }
   @media print{
-    .note,header,.tabbar,.apptop,.btn-primary,.link-btn,.back{display:none !important}
+    .note,header,.tabbar,.apptop,.btn-primary,.link-btn,.back,#cfCal{display:none !important}
     body{background:#fff !important}
     .screen{display:none !important}
     #confirm{display:block !important}
     #confirm .check{display:none}
   }
+  .cal-btn{border:1px solid var(--teal);background:#fff;color:var(--teal);font-weight:700;font-size:13px;padding:9px 15px;border-radius:30px;cursor:pointer;font-family:inherit}
+  .cal-btn:hover{background:#EEF5F2}
   .nav{display:flex;align-items:center;justify-content:space-between;height:72px}
   .logo{display:flex;align-items:center;gap:9px;cursor:pointer;font-family:'Fraunces',serif;font-weight:600;font-size:25px;color:var(--teal);letter-spacing:-.5px}
   .logo .star{width:22px;height:22px;flex:none}
@@ -381,11 +383,14 @@
 
   /* ACCOUNT MENU */
   .acct-wrap{position:relative}
-  .acct-menu{position:absolute;right:0;top:48px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);width:190px;padding:7px;display:none;z-index:70}
+  .acct-menu{position:absolute;right:0;top:48px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 90px);overflow-y:auto;padding:8px;display:none;z-index:70}
   .acct-menu.open{display:block;animation:fade .2s ease}
-  .acct-menu button{width:100%;text-align:left;background:none;border:none;font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);padding:11px 13px;border-radius:9px;cursor:pointer}
+  .acct-menu-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:3px}
+  .acct-menu button{width:100%;text-align:left;background:none;border:none;font-family:inherit;font-size:13.5px;font-weight:500;color:var(--ink);padding:10px 11px;border-radius:9px;cursor:pointer}
   .acct-menu button:hover{background:var(--cream-2)}
-  .acct-menu .sep{height:1px;background:var(--line);margin:5px 8px}
+  .acct-menu .sep{height:1px;background:var(--line);margin:6px 4px}
+  .acct-menu .full{width:100%}
+  @media (max-width:420px){ .acct-menu-grid{grid-template-columns:1fr} }
 
   /* TRIPS */
   .trip-row{display:flex;align-items:center;gap:16px;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;background:#fff}
@@ -572,23 +577,25 @@
       <div class="acct-wrap">
         <div class="acct" id="acct" style="display:none" onclick="toggleAcctMenu(event)"><span id="acctInitial"></span></div>
         <div class="acct-menu" id="acctMenu">
-          <button onclick="openSearch()">Search</button>
-          <button onclick="openTrips()">My trips</button>
-          <button onclick="openSaved()">Saved</button>
-          <button onclick="openInbox()">Messages</button>
-          <button onclick="closeAcctMenu();openResolution()">Resolution Center</button>
-          <button onclick="openDashboard()">Host dashboard</button>
-          <button onclick="openCompany()">Company overview</button>
-          <button onclick="openPayments()">Payments</button>
-          <button onclick="openAdmin()">Host applications</button>
-          <button onclick="openHosts()">Hosts directory</button>
-          <button onclick="openGuide('guests')">How it works</button>
-          <button onclick="openPolicies()">Policies</button>
-          <button id="verifyMenuBtn" onclick="openVerify()">Verify ID</button>
-          <button onclick="openHelp()">Help &amp; safety</button>
-          <button onclick="closeAcctMenu();go('home')">Browse stays</button>
+          <div class="acct-menu-grid">
+            <button onclick="openSearch()">Search</button>
+            <button onclick="openTrips()">My trips</button>
+            <button onclick="openSaved()">Saved</button>
+            <button onclick="openInbox()">Messages</button>
+            <button onclick="closeAcctMenu();openResolution()">Resolution Center</button>
+            <button onclick="openDashboard()">Host dashboard</button>
+            <button onclick="openCompany()">Company overview</button>
+            <button onclick="openPayments()">Payments</button>
+            <button onclick="openAdmin()">Host applications</button>
+            <button onclick="openHosts()">Hosts directory</button>
+            <button onclick="openGuide('guests')">How it works</button>
+            <button onclick="openPolicies()">Policies</button>
+            <button id="verifyMenuBtn" onclick="openVerify()">Verify ID</button>
+            <button onclick="openHelp()">Help &amp; safety</button>
+            <button onclick="closeAcctMenu();go('home')">Browse stays</button>
+          </div>
           <div class="sep"></div>
-          <button onclick="logout()">Log out</button>
+          <button class="full" onclick="logout()">Log out</button>
         </div>
       </div>
     </div>
@@ -983,6 +990,13 @@
         <div class="co-line"><div class="cl"><b id="cfTotalLabel">Total paid</b></div><span id="cfTotal" style="font-weight:700"></span></div>
       </div>
       <div id="cfNotif" style="margin:18px auto 0;max-width:380px;font-size:13px;color:#3a3027;line-height:1.7;background:#EEF5F2;border:1px solid #CFE3DC;border-radius:12px;padding:12px 15px;text-align:left"></div>
+      <div id="cfCal" style="margin:18px auto 0;max-width:380px;display:none">
+        <div style="font-size:13px;color:#8a7d6a;margin-bottom:9px">📅 Add this booking to your calendar</div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="cal-btn" id="cfCalGoogle">Google Calendar</button>
+          <button class="cal-btn" id="cfCalApple">Apple / Phone</button>
+        </div>
+      </div>
       <div style="margin-top:10px"><button class="link-btn" onclick="openEmails()">View what we sent →</button></div>
       <button class="btn-primary" style="max-width:260px;margin:22px auto 0" onclick="go('home')">Back to home</button>
       <div style="margin-top:14px"><button class="link-btn" onclick="window.print()">🖨️ Print / Save as PDF</button> &nbsp;·&nbsp; <button class="link-btn" onclick="openLastBookingThread()">Message your host</button></div>
@@ -2510,7 +2524,7 @@
         try{ c=await api('/bookings/'+ref+'/checkout',{method:'POST'}); }
         catch(e){ toast(tr("Couldn't start secure payment — please try again.")); return; }
         if(c && c.enabled && c.url){
-          try{ localStorage.setItem('hoy_pending_pay', JSON.stringify({ref, when, total, pplLabel, title:current.title, city:current.city, host:current.host, kind:current.kind})); }catch(e){}
+          try{ localStorage.setItem('hoy_pending_pay', JSON.stringify({ref, when, total, pplLabel, title:current.title, city:current.city, host:current.host, kind:current.kind, ci:(sel.in?startOfDay(sel.in).getTime():null), co:((!exp&&sel.out)?startOfDay(sel.out).getTime():null)})); }catch(e){}
           window.location.href=c.url; return; // real Stripe Checkout
         }
         toast(tr('Card payments are not switched on yet.')); return;
@@ -2563,6 +2577,7 @@
     sendBookingNotifications({ref,title:current.title,city:current.city,host:current.host,when,pplLabel,total,payout,exp,requested});
     seedBookingThread(current.host,current.title,current.g,when,requested,ref);
     lastBooking={host:current.host,title:current.title,g:current.g,init:(current.host||'?').charAt(0),ref};
+    try{ const _cs=sel.in?startOfDay(sel.in).getTime():null; const _ce=(!exp&&sel.out)?startOfDay(sel.out).getTime():(_cs?_cs+86400000:null); renderCalButtons(_cs?{title:'Hoy · '+current.title, location:current.city||'', startTs:_cs, endTs:_ce, details:'Hoy booking '+ref+(current.host?(' · Host '+current.host):'')}:null); }catch(e){}
     go('confirm');window.scrollTo(0,0);
   }
   // After returning from Stripe Checkout (?paid=REF): show a printable confirmation.
@@ -2586,8 +2601,49 @@
     }
     const cfNotif=document.getElementById('cfNotif'); if(cfNotif)cfNotif.innerHTML='';
     if(d.title) lastBooking={host:d.host||'',title:d.title,g:null,init:(d.host||'?').charAt(0),ref};
+    try{ renderCalButtons(d.ci?{title:'Hoy · '+(d.title||'Booking'), location:d.city||'', startTs:d.ci, endTs:d.co||(d.ci+86400000), details:'Hoy booking '+ref}:null); }catch(e){}
     go('confirm'); window.scrollTo(0,0);
     toast('✅ Payment received — your booking is confirmed.');
+  }
+  // ---- Add-to-calendar helpers (Google Calendar link + .ics file for Apple/Android) ----
+  function _calPad(n){return String(n).padStart(2,'0');}
+  function _calYMD(ts){const d=new Date(ts);return ''+d.getFullYear()+_calPad(d.getMonth()+1)+_calPad(d.getDate());}
+  function _icsEsc(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');}
+  function buildCalLinks(ev){
+    const start=_calYMD(ev.startTs);
+    const endEx=_calYMD(ev.endTs?ev.endTs:(ev.startTs+86400000));
+    const g='https://calendar.google.com/calendar/render?action=TEMPLATE'
+      +'&text='+encodeURIComponent(ev.title||'Hoy booking')
+      +'&dates='+start+'/'+endEx
+      +'&details='+encodeURIComponent(ev.details||'')
+      +(ev.location?'&location='+encodeURIComponent(ev.location):'');
+    const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Hoy//Booking//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT',
+      'UID:'+(ev.uid||('hoy-'+start+'-'+Math.random().toString(36).slice(2,8)))+'@hoy.app',
+      'DTSTAMP:'+_calYMD(Date.now())+'T000000Z',
+      'DTSTART;VALUE=DATE:'+start,
+      'DTEND;VALUE=DATE:'+endEx,
+      'SUMMARY:'+_icsEsc(ev.title||'Hoy booking')]
+      .concat(ev.location?['LOCATION:'+_icsEsc(ev.location)]:[])
+      .concat(ev.details?['DESCRIPTION:'+_icsEsc(ev.details)]:[])
+      .concat(['END:VEVENT','END:VCALENDAR']).join('\r\n');
+    return {google:g, ics};
+  }
+  function downloadICS(text,name){
+    try{
+      const blob=new Blob([text],{type:'text/calendar;charset=utf-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download=(String(name||'hoy-booking').replace(/[^a-z0-9]+/gi,'-').toLowerCase()||'hoy-booking')+'.ics';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),3000);
+    }catch(e){ window.location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(text); }
+  }
+  function renderCalButtons(ev){
+    const wrap=document.getElementById('cfCal');if(!wrap)return;
+    if(!ev||!ev.startTs){wrap.style.display='none';return;}
+    const L=buildCalLinks(ev);
+    wrap.style.display='block';
+    const g=document.getElementById('cfCalGoogle');if(g)g.onclick=()=>window.open(L.google,'_blank','noopener');
+    const a=document.getElementById('cfCalApple');if(a)a.onclick=()=>downloadICS(L.ics,ev.title);
   }
   // automated communication lifecycle: drop a system message into the host thread on booking
   function seedBookingThread(host,title,g,when,requested,ref){
