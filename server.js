@@ -59,7 +59,20 @@ async function stripeRequest(path, params) {
   if (!resp.ok) throw new Error((data.error && data.error.message) || 'Stripe error');
   return data;
 }
-// ---- live currency rates: auto-updates daily, free, no API key needed ---- let fxRates = { USD:1, GBP:0.79, EUR:0.92, CAD:1.36, NOK:10.7, SEK:10.5 }; // safe fallbacks let fxDate = null, fxAt = 0; async function getRates() {   if (Date.now() - fxAt < 6*60*60*1000) return { rates: fxRates, date: fxDate }; // refresh at most every 6h   fxAt = Date.now();   try {     const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=GBP,EUR,CAD,NOK,SEK');     const d = await r.json();     if (d && d.rates && d.rates.EUR) { fxRates = Object.assign({ USD:1 }, d.rates); fxDate = d.date || null; }   } catch (e) { console.log('[hoy] fx fetch failed, keeping last rates:', e.message); }   return { rates: fxRates, date: fxDate }; } function verifyStripeSig(raw, sigHeader, secret) {
+/* live currency rates: auto-updates daily, free, no API key needed */
+let fxRates = { USD:1, GBP:0.79, EUR:0.92, CAD:1.36, NOK:10.7, SEK:10.5 };
+let fxDate = null, fxAt = 0;
+async function getRates() {
+  if (Date.now() - fxAt < 6*60*60*1000) return { rates: fxRates, date: fxDate };
+  fxAt = Date.now();
+  try {
+    const r = await fetch('https://api.frankfurter.app/latest?from=USD&to=GBP,EUR,CAD,NOK,SEK');
+    const d = await r.json();
+    if (d && d.rates && d.rates.EUR) { fxRates = Object.assign({ USD:1 }, d.rates); fxDate = d.date || null; }
+  } catch (e) { console.log('[hoy] fx fetch failed, keeping last rates:', e.message); }
+  return { rates: fxRates, date: fxDate };
+}
+function verifyStripeSig(raw, sigHeader, secret) {
   if (!sigHeader) return false;
   const parts = {};
   String(sigHeader).split(',').forEach((kv) => { const i = kv.indexOf('='); if (i > 0) parts[kv.slice(0, i)] = kv.slice(i + 1); });
