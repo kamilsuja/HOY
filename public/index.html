@@ -2258,10 +2258,14 @@
   }
   function setLang(l){lang=l;closePrefs();updatePrefLabel();applyLang();}
   // ===== CURRENCY =====
-  let cur='USD'; const FX=570;
-  function money(n){n=Math.round(n);return cur==='USD'?('$'+n.toLocaleString()):('Sh '+Math.round(n*FX).toLocaleString());}
+  let cur='USD';
+  const CUR_SYM={USD:'$',GBP:'£',EUR:'€',CAD:'C$',NOK:'kr ',SEK:'kr '};
+  let FXR={USD:1,GBP:0.79,EUR:0.92,CAD:1.36,NOK:10.7,SEK:10.5}; // live rates per 1 USD; refreshed from server
+  function money(n){const sym=CUR_SYM[cur]||'$';const v=Math.round((+n||0)*(FXR[cur]||1));return sym+v.toLocaleString();}
   function setCur(c){cur=c;closePrefs();updatePrefLabel();render();renderExp();if(lang==='so')applyI18n();}
-  function updatePrefLabel(){const e=document.getElementById('prefLabel');if(e)e.textContent=(lang==='so'?'SO':'EN')+' · '+(cur==='USD'?'$':'Sh');}
+  function updatePrefLabel(){const e=document.getElementById('prefLabel');if(e)e.textContent=(lang==='so'?'SO':'EN')+' · '+((CUR_SYM[cur]||'$').trim());}
+  async function loadRates(){if(!apiOn)return;try{const r=await api('/fx');if(r&&r.rates){FXR=Object.assign({},FXR,r.rates);render();renderExp();updatePrefLabel();}}catch(e){}}
+  loadRates();
   function togglePrefs(e){e.stopPropagation();document.getElementById('prefMenu').classList.toggle('open');}
   function closePrefs(){const m=document.getElementById('prefMenu');if(m)m.classList.remove('open');}
   document.addEventListener('click',e=>{const w=document.querySelector('.pref-wrap');if(w&&!w.contains(e.target))closePrefs();});
