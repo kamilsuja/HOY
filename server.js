@@ -498,6 +498,13 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'GET' && p === '/me') {
+      const contact = await authContact(req);
+      if (!contact) return json(res, 200, { authed: false, isAdmin: false, isHost: false });
+      let isHost = false; try { isHost = !!(await db.hostByContact(contact)); } catch (e) {}
+      return json(res, 200, { authed: true, contact, isAdmin: isAdminContact(contact), isHost });
+    }
+
     if (req.method === 'GET' && p === '/me/bookings') {
       const contact = await authContact(req);
       if (!contact) return json(res, 401, { error: 'Sign in required' });
