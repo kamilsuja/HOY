@@ -17,11 +17,11 @@ function freshData() {
 
   const listings = [
     { id: 'L1', hostId: 'h1', title: 'Sunlit villa steps from Lido Beach', city: 'Mogadishu', type: 'Entire villa',     price: 74, rating: 4.9, instantBook: true,  booked: [] },
-    { id: 'L2', hostId: 'h2', title: 'Cosy guesthouse near the centre',     city: 'Hargeisa',  type: 'Entire guesthouse', price: 48, rating: 4.8, instantBook: false, booked: [] },
-    { id: 'L3', hostId: 'h3', title: 'Beachfront guesthouse on the Gulf',   city: 'Berbera',   type: 'Entire home',      price: 60, rating: 4.7, instantBook: false, booked: [] },
-    { id: 'L4', hostId: 'h4', title: 'Modern apartment near the port',      city: 'Kismayo',   type: 'Entire apartment', price: 52, rating: 5.0, instantBook: true,  booked: [] },
-    { id: 'L5', hostId: 'h5', title: 'City apartment in Bosaso',            city: 'Bosaso',    type: 'Entire apartment', price: 44, rating: 4.2, instantBook: false, booked: [] },
-    { id: 'L6', hostId: 'h6', title: 'Garden home in Garowe',              city: 'Garowe',    type: 'Entire home',      price: 40, rating: 4.9, instantBook: false, booked: [] },
+    { id: 'L2', hostId: 'h2', title: 'Modern apartment near the city center', city: 'Hargeisa', type: 'Entire apartment', price: 48, rating: 4.8, instantBook: false, booked: [] },
+    { id: 'L3', hostId: 'h3', title: 'Beachfront guesthouse on the Gulf',   city: 'Berbera',   type: 'Entire home',      price: 39, rating: 4.9, instantBook: false, booked: [] },
+    { id: 'L4', hostId: 'h4', title: 'Garden home near the riverfront',     city: 'Kismayo',   type: 'Entire home',      price: 42, rating: 4.9, instantBook: true,  booked: [] },
+    { id: 'L5', hostId: 'h5', title: 'Seaside apartment by the port',       city: 'Bosaso',    type: 'Entire apartment', price: 45, rating: 4.9, instantBook: false, booked: [] },
+    { id: 'L6', hostId: 'h6', title: 'Modern villa with private courtyard', city: 'Garowe',    type: 'Entire villa',     price: 50, rating: 4.9, instantBook: false, booked: [] },
   ];
 
   const experiences = [
