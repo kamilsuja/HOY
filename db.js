@@ -71,6 +71,8 @@ function makeJsonStore() {
     async addEvent(e) { load().events.push(e); save(); },
     async eventsForListing(id, sinceTs) { return load().events.filter((e) => e.listingId === id && (!sinceTs || e.ts >= sinceTs)); },
     async searchEvents(sinceTs) { return load().events.filter((e) => e.type === 'search' && (!sinceTs || e.ts >= sinceTs)); },
+    async allEvents(sinceTs) { return load().events.filter((e) => !sinceTs || e.ts >= sinceTs); },
+    async verifiedContacts() { return Object.keys(load().verifiedContacts || {}); },
     async bookingsForListing(id) { return load().bookings.filter((b) => b.listingId === id); },
     async getBooking(id) { return load().bookings.find((b) => b.id === id) || null; },
     async getIdem(key) { return load().idem[key] || null; },

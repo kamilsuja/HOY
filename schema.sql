@@ -59,9 +59,10 @@ CREATE TABLE IF NOT EXISTS verified_contacts (
 -- Analytics events + booking idempotency
 CREATE TABLE IF NOT EXISTS events (
   id         bigserial PRIMARY KEY,
-  type       text NOT NULL,             -- 'view', etc.
-  listing_id text NOT NULL,
-  ts         bigint NOT NULL
+  type       text NOT NULL,             -- 'view', 'save', 'unsave', 'share', 'dwell', 'search'
+  listing_id text,                      -- null for search events
+  ts         bigint NOT NULL,
+  ms         bigint                     -- time-on-listing in ms, for 'dwell' events
 );
 CREATE INDEX IF NOT EXISTS events_listing_idx ON events(listing_id, ts);
 

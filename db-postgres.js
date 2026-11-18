@@ -86,8 +86,10 @@ module.exports = {
   async markContactVerified(contact) { await q('INSERT INTO verified_contacts(contact) VALUES($1) ON CONFLICT DO NOTHING', [contact]); },
   async isContactVerified(contact) { const r = await q('SELECT 1 FROM verified_contacts WHERE contact=$1', [contact]); return r.length > 0; },
 
-  async addEvent(e) { await q('INSERT INTO events(type,listing_id,ts) VALUES($1,$2,$3)', [e.type, e.listingId, e.ts]); },
-  async eventsForListing(id, sinceTs) { const r = await q('SELECT type,listing_id AS "listingId",ts FROM events WHERE listing_id=$1 AND ($2::bigint IS NULL OR ts>=$2)', [id, sinceTs || null]); return r; },
+  async addEvent(e) { await q('INSERT INTO events(type,listing_id,ts,ms) VALUES($1,$2,$3,$4)', [e.type, e.listingId || null, e.ts, e.ms || null]); },
+  async eventsForListing(id, sinceTs) { const r = await q('SELECT type,listing_id AS "listingId",ts,ms FROM events WHERE listing_id=$1 AND ($2::bigint IS NULL OR ts>=$2)', [id, sinceTs || null]); return r; },
+  async allEvents(sinceTs) { const r = await q('SELECT type,listing_id AS "listingId",ts,ms FROM events WHERE ($1::bigint IS NULL OR ts>=$1)', [sinceTs || null]); return r; },
+  async verifiedContacts() { const r = await q('SELECT contact FROM verified_contacts'); return r.map((x) => x.contact); },
   async bookingsForListing(id) { const r = await q(`SELECT data FROM bookings WHERE data->>'listingId'=$1 ORDER BY created_at DESC`, [id]); return r.map((x) => x.data); },
   async getBooking(id) { const r = await q('SELECT data FROM bookings WHERE id=$1', [id]); return r[0] ? r[0].data : null; },
   async getIdem(key) { const r = await q('SELECT booking_id FROM idempotency WHERE key=$1', [key]); return r[0] ? r[0].booking_id : null; },

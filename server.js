@@ -267,8 +267,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/fx') return json(res, 200, await getRates());      if (req.method === 'POST' && p === '/events') {
       const rl = limit('evt:' + ip, 120, 60 * 1000);
       if (!rl.ok) return json(res, 429, { error: 'rate limited' });
-      const { type, listingId, query, category } = await readJson(req);
+      const { type, listingId, query, category, ms } = await readJson(req);
       if (type === 'view' && listingId) await db.addEvent({ type, listingId, ts: Date.now() });
+      else if ((type === 'save' || type === 'unsave' || type === 'share') && listingId) await db.addEvent({ type, listingId, ts: Date.now() });
+      else if (type === 'dwell' && listingId) { const m = Math.max(0, Math.min(1800000, Number(ms) || 0)); if (m >= 1000) await db.addEvent({ type, listingId, ms: m, ts: Date.now() }); }
       else if (type === 'search' && query) await db.addEvent({ type, query: String(query).slice(0, 80).trim().toLowerCase(), category: category || 'homes', ts: Date.now() });
       return json(res, 200, { ok: true });
     }
@@ -311,11 +313,12 @@ const server = http.createServer(async (req, res) => {
       if (!item) return json(res, 404, { error: 'Not found' });
       const now = Date.now(), wk = 7 * 864e5, since = now - 8 * wk;
       const evs = await db.eventsForListing(id, since);
+      const viewEvs = evs.filter((e) => e.type === 'view' || e.type === undefined);
       const weeks = Array.from({ length: 8 }, (_, i) => {
         const lo = now - (8 - i) * wk, hi = now - (7 - i) * wk;
-        return evs.filter((e) => e.ts >= lo && e.ts < hi).length;
+        return viewEvs.filter((e) => e.ts >= lo && e.ts < hi).length;
       });
-      const views = evs.length;
+      const views = viewEvs.length;
       const bk = (await db.bookingsForListing(id)).filter((b) => new Date(b.createdAt).getTime() >= since);
       const bookings = bk.length;
       const earnings = bk.reduce((s, b) => s + (b.payout || 0), 0);
@@ -849,6 +852,52 @@ const server = http.createServer(async (req, res) => {
       evs.forEach((e) => { const q = (e.query || '').trim(); if (!q) return; counts[q] = (counts[q] || 0) + 1; });
       const top = Object.entries(counts).map(([query, count]) => ({ query, count })).sort((a, b) => b.count - a.count).slice(0, 25);
       return json(res, 200, { total: evs.length, unique: Object.keys(counts).length, top });
+    }
+
+    // Accounts overview: everyone who has verified a login code, split into hosts vs guests.
+    if (p === '/admin/accounts' && req.method === 'GET') {
+      if (!(await requireAdmin(req, res))) return;
+      const verified = (await db.verifiedContacts()).map((c) => String(c).toLowerCase());
+      const hosts = await db.hosts();
+      const hostContacts = new Set();
+      hosts.forEach((h) => { if (h.email) hostContacts.add(String(h.email).toLowerCase()); if (h.phone) hostContacts.add(String(h.phone).toLowerCase()); });
+      const total = verified.length;
+      const hostAccounts = verified.filter((c) => hostContacts.has(c)).length;
+      const guests = Math.max(0, total - hostAccounts);
+      return json(res, 200, {
+        total, hosts: hostAccounts, guests,
+        hostRecords: { total: hosts.length, active: hosts.filter((h) => h.status === 'active').length, pending: hosts.filter((h) => h.status === 'pending').length },
+      });
+    }
+
+    // Growth & ranking: most engaging listings over the last 30 days (views, saves, shares, time-on-listing).
+    if (p === '/admin/growth' && req.method === 'GET') {
+      if (!(await requireAdmin(req, res))) return;
+      const since = Date.now() - 30 * 864e5;
+      const evs = await db.allEvents(since);
+      const agg = {};
+      const slot = (id) => (agg[id] = agg[id] || { views: 0, saves: 0, shares: 0, dwellMs: 0, dwellN: 0 });
+      evs.forEach((e) => {
+        if (!e.listingId) return;
+        if (e.type === 'view') slot(e.listingId).views += 1;
+        else if (e.type === 'save') slot(e.listingId).saves += 1;
+        else if (e.type === 'unsave') slot(e.listingId).saves -= 1;
+        else if (e.type === 'share') slot(e.listingId).shares += 1;
+        else if (e.type === 'dwell') { const s = slot(e.listingId); s.dwellMs += (e.ms || 0); s.dwellN += 1; }
+      });
+      const rows = [];
+      for (const id of Object.keys(agg)) {
+        const a = agg[id];
+        const saves = Math.max(0, a.saves);
+        const avgDwell = a.dwellN ? Math.round(a.dwellMs / a.dwellN / 1000) : 0; // seconds
+        const score = a.views + saves * 5 + a.shares * 8 + Math.round(avgDwell * 0.2);
+        let title = id;
+        try { const it = await db.getListing(id); if (it && it.title) title = it.title; } catch (e) {}
+        rows.push({ id, title, views: a.views, saves, shares: a.shares, avgDwell, score });
+      }
+      rows.sort((x, y) => y.score - x.score);
+      const totals = rows.reduce((s, r) => ({ views: s.views + r.views, saves: s.saves + r.saves, shares: s.shares + r.shares }), { views: 0, saves: 0, shares: 0 });
+      return json(res, 200, { since, totals, listings: rows.slice(0, 25) });
     }
 
     if (p === '/admin/revenue' && req.method === 'GET') {

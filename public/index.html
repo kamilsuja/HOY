@@ -597,7 +597,7 @@
             <button onclick="openDashboard()">Host dashboard</button>
             <button onclick="openCompany()">Company overview</button>
             <button onclick="openPayments()">Payments</button>
-            <button onclick="openAdmin()">Host applications</button>
+            <button onclick="openAdmin()">Admin</button>
             <button onclick="openHosts()">Hosts directory</button>
             <button onclick="openGuide('guests')">How it works</button>
             <button onclick="openPolicies()">Policies</button>
@@ -1092,7 +1092,14 @@
 <!-- ================= ADMIN: HOST APPLICATIONS ================= -->
 <div class="screen" id="admin">
   <div class="dash">
-    <div class="dash-head"><div><h2>Host applications</h2><p>Review and verify each host before they can offer services on Hoy.</p></div></div>
+    <div class="dash-head"><div><h2>Accounts</h2><p>Everyone who has signed up on Hoy, split into hosts and guests.</p></div></div>
+    <div class="stats">
+      <div class="stat"><div class="sv" id="accTotal">0</div><div class="sl">Total accounts</div></div>
+      <div class="stat"><div class="sv" id="accHosts">0</div><div class="sl">Hosts</div></div>
+      <div class="stat"><div class="sv" id="accGuests">0</div><div class="sl">Guests</div></div>
+    </div>
+
+    <div class="dash-head" style="margin-top:38px"><div><h2>Host applications</h2><p>Review and verify each host before they can offer services on Hoy.</p></div></div>
     <div class="stats">
       <div class="stat"><div class="sv" id="admPending">0</div><div class="sl">Pending review</div></div>
       <div class="stat"><div class="sv" id="admApproved">0</div><div class="sl">Verified hosts</div></div>
@@ -1113,6 +1120,14 @@
       <div class="stat" style="flex:1;min-width:140px"><div class="sv" id="payDueTotal">$0</div><div class="sl">Due now</div></div>
     </div>
     <div id="admPayouts"></div>
+
+    <div class="dash-head" style="margin-top:38px"><div><h2>Growth &amp; ranking</h2><p>Your most engaging listings over the last 30 days — views, saves, shares and average time spent looking. Higher score = more popular.</p></div></div>
+    <div class="stats" style="margin-bottom:14px">
+      <div class="stat"><div class="sv" id="grViews">0</div><div class="sl">Views (30d)</div></div>
+      <div class="stat"><div class="sv" id="grSaves">0</div><div class="sl">Saves (30d)</div></div>
+      <div class="stat"><div class="sv" id="grShares">0</div><div class="sl">Shares (30d)</div></div>
+    </div>
+    <div id="admGrowth"></div>
 
     <h3 style="margin-top:38px">Top searches</h3>
     <p style="font-size:13px;color:var(--muted);margin:-6px 0 12px">What people are looking for most — use it to recruit hosts where demand is highest.</p>
@@ -1805,11 +1820,13 @@
     }
     syncDetailSave();
     go('detail');
+    startDwell(it.id);
     window.scrollTo(0,0);
   }
 
   let prevScreen='home';
   function go(id){
+    flushDwell();
     const cur=document.querySelector('.screen.active'); if(cur&&cur.id!==id)prevScreen=cur.id;
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -2098,13 +2115,23 @@
 
   // ===== WISHLIST / SAVED =====
   let wishlist=[], currentIdx=-1;
+  // ---- engagement tracking: saves, shares, time-on-listing ----
+  function logEvent(type,listingId,extra){ if(apiOn&&listingId){ try{ api('/events',{method:'POST',body:JSON.stringify(Object.assign({type,listingId},extra||{}))}).catch(()=>{}); }catch(e){} } }
+  function listingIdFor(kind,key){ try{ if(kind==='service')return key; if(kind==='experience')return (experiences[key]||{}).id; return (stays[key]||{}).id; }catch(e){ return null; } }
+  let _dwell=null;
+  function startDwell(id){ flushDwell(); if(id)_dwell={id:id,t:Date.now()}; }
+  function flushDwell(){ if(!_dwell)return; const ms=Date.now()-_dwell.t, id=_dwell.id; _dwell=null; if(ms>=1500)logEvent('dwell',id,{ms:ms}); }
+  document.addEventListener('visibilitychange',function(){ if(document.hidden)flushDwell(); });
+  window.addEventListener('pagehide',flushDwell);
   // services are keyed by stable id; stays/experiences by array index
   function isSaved(kind,key){return wishlist.some(w=>w.kind===kind&&(kind==='service'?w.id===key:w.idx===key));}
   function heartBtn(kind,idx){const on=isSaved(kind,idx);return `<button class="savebtn${on?' on':''}" onclick="event.stopPropagation();toggleSave('${kind}',${idx})">${on?'<span style="color:var(--clay)">♥</span>':'<span style="color:#fff">♡</span>'}</button>`;}
   function heartBtnSvc(id){const on=isSaved('service',id);return `<button class="savebtn${on?' on':''}" onclick="event.stopPropagation();toggleSave('service','${id}')">${on?'<span style="color:var(--clay)">♥</span>':'<span style="color:#fff">♡</span>'}</button>`;}
   function toggleSave(kind,key){
     const i=wishlist.findIndex(w=>w.kind===kind&&(kind==='service'?w.id===key:w.idx===key));
+    const adding=!(i>-1);
     if(i>-1)wishlist.splice(i,1);else wishlist.push(kind==='service'?{kind,id:key}:{kind,idx:key});
+    logEvent(adding?'save':'unsave',listingIdFor(kind,key));
     persistWishlist();
     if(document.getElementById('home').classList.contains('active'))renderHome();
     if(document.getElementById('experiences').classList.contains('active'))renderExp();
@@ -2121,7 +2148,7 @@
   // ===== MISC FEATURES (toast, share, amenities, cancel, verify, report, cohost) =====
   let guestVerified=false, cohostTitle='';
   function toast(msg){let t=document.getElementById('toast');if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:30px;font-size:14px;font-weight:600;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .25s;max-width:90vw;text-align:center';document.body.appendChild(t);}t.textContent=tr(msg);t.style.opacity='1';clearTimeout(window._tt);window._tt=setTimeout(()=>{t.style.opacity='0';},2300);}
-  function shareListing(){const txt=current?`Check out "${current.title}" on Hoy`:'Hoy';try{if(navigator.share){navigator.share({title:'Hoy',text:txt});return;}}catch(e){}try{navigator.clipboard.writeText(txt+' — hoy.app');}catch(e){}toast('Link copied to share');}
+  function shareListing(){if(current&&current.id)logEvent('share',current.id);const txt=current?`Check out "${current.title}" on Hoy`:'Hoy';try{if(navigator.share){navigator.share({title:'Hoy',text:txt});return;}}catch(e){}try{navigator.clipboard.writeText(txt+' — hoy.app');}catch(e){}toast('Link copied to share');}
   const AMENITIES=[['📶','Wifi'],['🍳','Kitchen'],['❄️','Air conditioning'],['🚿','Hot water'],['🅿️','Free parking'],['🔑','Self check-in'],['🧺','Washer'],['🛗','Lift'],['🌅','Sea or city view'],['🔌','Backup power'],['🛡️','Smoke alarm'],['☕','Coffee / shaah']];
   function amenitiesHTML(it){const names=it.am||AMENITIES.slice(0,8).map(a=>a[1]);const rows=AMENITIES.filter(a=>names.indexOf(a[1])>-1);return `<h3 style="font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:6px 0 14px">What this place offers</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:13px">`+rows.map(a=>`<div style="display:flex;align-items:center;gap:10px;font-size:14px"><span style="font-size:18px">${a[0]}</span>${a[1]}</div>`).join('')+`</div>`;}
   async function cancelTrip(i){
@@ -3257,6 +3284,23 @@
       if(!top.length)sEl.innerHTML='<div style="font-size:13.5px;color:var(--muted);padding:6px 0">No searches yet. Searches people make on the Explore tab will be counted here.</div>';
       else { const max=top[0].count||1; sEl.innerHTML=top.map((t,i)=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:16px;color:var(--muted);font-size:12px">${i+1}</span><div style="flex:1"><div style="display:flex;justify-content:space-between;font-size:13.5px"><span>${(t.query||'').replace(/[<>]/g,'')}</span><span style="color:var(--muted)">${t.count}</span></div><div style="height:6px;background:var(--cream-2);border-radius:4px;margin-top:3px"><div style="height:6px;width:${Math.round((t.count/max)*100)}%;background:var(--clay);border-radius:4px"></div></div></div></div>`).join(''); }
     }
+    // ---- Accounts ----
+    if(apiOn&&isAdmin){ try{ const ac=await api('/admin/accounts');
+      setT('accTotal',(ac.total||0).toLocaleString()); setT('accHosts',(ac.hosts||0).toLocaleString()); setT('accGuests',(ac.guests||0).toLocaleString());
+    }catch(e){} }
+    // ---- Growth & ranking ----
+    if(apiOn&&isAdmin){ try{ const g=await api('/admin/growth'); const t=g.totals||{};
+      setT('grViews',(t.views||0).toLocaleString()); setT('grSaves',(t.saves||0).toLocaleString()); setT('grShares',(t.shares||0).toLocaleString());
+      const gEl=document.getElementById('admGrowth');
+      if(gEl){ const rows=g.listings||[];
+        if(!rows.length)gEl.innerHTML='<div style="font-size:13.5px;color:var(--muted);padding:6px 0">No engagement yet. Views, saves, shares and time-on-listing will show up here as people use Hoy.</div>';
+        else { const max=rows[0].score||1; gEl.innerHTML=rows.map((r,i)=>`<div style="border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div style="font-weight:700;font-size:14px">${i+1}. ${(r.title||'').replace(/[<>]/g,'')}</div><div style="font-size:12px;color:var(--muted)">score ${r.score}</div></div>
+          <div style="height:6px;background:var(--cream-2);border-radius:4px;margin:8px 0"><div style="height:6px;width:${Math.round((r.score/max)*100)}%;background:var(--clay);border-radius:4px"></div></div>
+          <div style="font-size:12.5px;color:var(--muted)">👁 ${r.views} views · ♥ ${r.saves} saves · ↗ ${r.shares} shares · ⏱ ${r.avgDwell}s avg</div>
+        </div>`).join(''); }
+      }
+    }catch(e){} }
   }
   function downloadPayoutSheet(){
     if(!payoutRows.length){toast('No payouts to export yet.');return;}
@@ -3980,7 +4024,7 @@
     document.getElementById('edDate').textContent=sel.in?fmt(sel.in):'Add date';
     document.getElementById('edReviews').innerHTML=reviewsBlockHTML(it.title);
     syncDetailSave();
-    go('expDetail');window.scrollTo(0,0);
+    go('expDetail');startDwell(it.id);window.scrollTo(0,0);
   }
   function edPeople(d){expPeople=Math.min(15,Math.max(1,expPeople+d));document.getElementById('edPpl').textContent=expPeople;}
   function handleExpPhotos(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{expCover=ev.target.result;document.getElementById('expUpLabel').textContent='Cover photo added';};r.readAsDataURL(f);}
