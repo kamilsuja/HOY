@@ -817,7 +817,7 @@
     <div class="wstep" id="ws3">
       <div class="kicker">Step 3 of 5</div>
       <h2>Add some photos</h2>
-      <p class="wsub">Listings with bright, clear photos get booked far more often.</p>
+      <p class="wsub">At least one real photo is required — listings with bright, clear photos get booked far more often.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <label class="uploader" style="flex:1;min-width:140px;padding:22px 14px">
           <input type="file" accept="image/*" capture="environment" onchange="handlePhotos(event)">
@@ -2024,7 +2024,7 @@
     document.getElementById('wizNext').textContent= wstep===WSTEPS-1?'Publish':'Next';
     document.getElementById('wizFoot').style.display= wstep===WSTEPS?'none':'block';
   }
-  function wizNext(){ if(wstep===1&&!(document.getElementById('wLoc').value||'').trim()){toast('Add the city or area where your place is');document.getElementById('wLoc').focus();return;} if(wstep===4&&!(document.getElementById('wTitle').value||'').trim()){toast('Give your listing a title');document.getElementById('wTitle').focus();return;} if(wstep<WSTEPS){wstep++; if(wstep===WSTEPS)publishListing(); showWStep(); window.scrollTo(0,0);} }
+  function wizNext(){ if(wstep===1&&!(document.getElementById('wLoc').value||'').trim()){toast('Add the city or area where your place is');document.getElementById('wLoc').focus();return;} if(wstep===4&&!(document.getElementById('wTitle').value||'').trim()){toast('Give your listing a title');document.getElementById('wTitle').focus();return;} if(wstep===3&&!listingPhotos.length){toast('Please add at least one real photo of your place');return;} if(wstep<WSTEPS){wstep++; if(wstep===WSTEPS)publishListing(); showWStep(); window.scrollTo(0,0);} }
   function wizBack(){ if(wstep>1){wstep--; showWStep(); window.scrollTo(0,0);} }
   function selType(el,val){document.querySelectorAll('#ws1 .opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');listing.type=val;}
   function bump(key,delta,id){listing[key]=Math.max(0,listing[key]+delta);document.getElementById(id).textContent=listing[key];}
@@ -4052,6 +4052,7 @@
   }
   function openHostExp(){closeAcctMenu();ensureHost(()=>guardPublish(beginHostExp));}
   function publishExp(){
+    if(!expCover){toast('Please add a cover photo for your experience');return;}
     const item={
       cat:document.getElementById('expCat').value,
       title:document.getElementById('expTitle').value||'Your experience',
