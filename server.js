@@ -83,14 +83,24 @@ function verifyStripeSig(raw, sigHeader, secret) {
 }
 
 /* -------------------- pricing (same rules as the app) -------------------- */
-function computePricing({ price, nights, guests, isExperience }) {
-  const sub = isExperience ? price * guests : price * nights;
+function computePricing({ price, nights, guests, isExperience, weeklyPct, monthlyPct }) {
+  const baseSub = isExperience ? price * guests : price * nights;
+  // Long-stay discount (stays only): platform default 10% for 7+ nights, 20% for 28+ nights.
+  // A host-set weeklyPct/monthlyPct on the listing overrides the default (0 disables it).
+  let discount = 0, discountLabel = null;
+  if (!isExperience) {
+    const wk = weeklyPct != null ? weeklyPct : 10;
+    const mo = monthlyPct != null ? monthlyPct : 20;
+    if (nights >= 28 && mo) { discount = Math.round(baseSub * mo / 100); discountLabel = `Monthly discount (${mo}% off)`; }
+    else if (nights >= 7 && wk) { discount = Math.round(baseSub * wk / 100); discountLabel = `Weekly discount (${wk}% off)`; }
+  }
+  const sub = baseSub - discount;
   const cleaning = isExperience ? 0 : 15;
   const guestFee = Math.round(sub * 0.12);
   const total = sub + cleaning + guestFee;
   const hostFee = Math.round(sub * 0.03);
   const payout = sub + cleaning - hostFee;
-  return { sub, cleaning, guestFee, hostFee, total, payout };
+  return { sub, baseSub, discount, discountLabel, cleaning, guestFee, hostFee, total, payout };
 }
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime(); }
 function nightsBetween(a, b) { const n = Math.round((startOfDay(b) - startOfDay(a)) / 864e5); return n > 0 ? n : 0; }
@@ -632,7 +642,7 @@ const server = http.createServer(async (req, res) => {
         await db.updateListingBooked(b.listingId, [inTs, outTs]);
         when = `${new Date(checkIn).toDateString()} – ${new Date(checkOut).toDateString()}`;
       } else if (body.checkIn) { checkIn = body.checkIn; when = new Date(checkIn).toDateString(); }
-      const pricing = computePricing({ price: item.price, nights, guests, isExperience: perGuest });
+      const pricing = computePricing({ price: item.price, nights, guests, isExperience: perGuest, weeklyPct: item.weeklyPct, monthlyPct: item.monthlyPct });
       const earlyFee = earlyCheckInFee(item, checkInTime, perGuest);
       if (earlyFee) { pricing.earlyCheckInFee = earlyFee; pricing.total += earlyFee; pricing.payout += earlyFee; }
       Object.assign(b, { guests, checkIn, checkOut, checkInTime, when, ...pricing, modifiedAt: new Date().toISOString() });
@@ -1049,7 +1059,7 @@ async function createBooking(res, contact, body, req) {
   // Instant book is the host's choice. Per-guest items (experiences/services) default to instant
   // unless the host turned it off; rentals default to request-to-book unless the host turned it on.
   const instant = perGuest ? (item.instantBook !== false) : (item.instantBook === true);
-  const pricing = computePricing({ price: item.price, nights, guests, isExperience: perGuest });
+  const pricing = computePricing({ price: item.price, nights, guests, isExperience: perGuest, weeklyPct: item.weeklyPct, monthlyPct: item.monthlyPct });
   const earlyFee = earlyCheckInFee(item, checkInTime, perGuest);
   if (earlyFee) { pricing.earlyCheckInFee = earlyFee; pricing.total += earlyFee; pricing.payout += earlyFee; }
   const host = (await db.getHost(item.hostId)) || {};

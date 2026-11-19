@@ -2408,7 +2408,7 @@
   function staySubtotal(it,inD,outD){let s=0;for(let t=startOfDay(inD).getTime();t<startOfDay(outD).getTime();t+=864e5)s+=nightlyPrice(it,t);return s;}
   function stayPricing(it,inD,outD,n){
     const sub=(inD&&outD)?staySubtotal(it,inD,outD):baseRate(it)*n;
-    const wk=it.weeklyPct||0, mo=it.monthlyPct||0;
+    const wk=it.weeklyPct!=null?it.weeklyPct:10, mo=it.monthlyPct!=null?it.monthlyPct:20;
     let disc=0,label='';
     if(n>=28&&mo){disc=Math.round(sub*mo/100);label=`Monthly discount (${mo}% off)`;}
     else if(n>=7&&wk){disc=Math.round(sub*wk/100);label=`Weekly discount (${wk}% off)`;}
