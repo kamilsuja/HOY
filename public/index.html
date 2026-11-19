@@ -946,6 +946,18 @@
           <p id="coStripeNoteBody" style="font-size:13.5px;color:var(--muted);line-height:1.55;margin:0">🔒 You'll enter your card securely on the next step. Payments are handled by Stripe — Hoy never sees or stores your card number.</p>
           <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-top:12px">🛡️ Visa, Mastercard & more accepted · 256-bit encrypted</div>
         </div>
+        <div class="co-block" id="coForGuest">
+          <h3>Who's staying?</h3>
+          <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;cursor:pointer">
+            <input type="checkbox" id="cfForOther" onchange="toggleForGuest()" style="width:16px;height:16px;flex:none">
+            <span>I'm booking this for someone else</span>
+          </label>
+          <div id="cfForFields" style="display:none;margin-top:12px">
+            <input id="cfGuestName" placeholder="Guest's full name" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit;margin-bottom:9px;box-sizing:border-box">
+            <input id="cfGuestPhone" placeholder="Guest's WhatsApp / phone" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit;box-sizing:border-box">
+            <p style="font-size:12px;color:var(--muted);margin:9px 0 0;line-height:1.5">Shared only with the host, so they can welcome whoever checks in. You still pay and manage the booking.</p>
+          </div>
+        </div>
       </div>
       <aside>
         <div class="co-summary">
@@ -2501,6 +2513,7 @@
     closeAcctMenu();
     if(!loggedIn){afterLogin=openCheckout;openAuth();return;}
     if(!current)return;
+    {const fo=document.getElementById('cfForOther'); if(fo)fo.checked=false; const gn=document.getElementById('cfGuestName'); if(gn)gn.value=''; const gp=document.getElementById('cfGuestPhone'); if(gp)gp.value=''; toggleForGuest();}
     document.getElementById('coPh').style.background=current.g;
     document.getElementById('coTitle').textContent=current.title;
     document.getElementById('coLoc').textContent=current.city;
@@ -2558,6 +2571,7 @@
     }
     return total;
   }
+  function toggleForGuest(){ const on=(document.getElementById('cfForOther')||{}).checked; const f=document.getElementById('cfForFields'); if(f)f.style.display=on?'block':'none'; }
   async function confirmBooking(){
     const exp=current.kind==='experience'||current.kind==='service';
     const it=currentItem||current;
@@ -2577,6 +2591,7 @@
       // When connected to the backend, persist the booking there and use its values.
       if(apiOn && it.id){
         const body={listingId:it.id, guests:ppl, guestChannel};
+        {const fo=document.getElementById('cfForOther'); if(fo&&fo.checked){ const gn=((document.getElementById('cfGuestName')||{}).value||'').trim(); const gp=((document.getElementById('cfGuestPhone')||{}).value||'').trim(); if(gn||gp){ body.forGuestName=gn; body.forGuestPhone=gp; } }}
         if(!exp){ if(!sel.in||!sel.out){ toast(tr('Please choose your dates first.')); return; } body.checkIn=new Date(startOfDay(sel.in)).toISOString(); body.checkOut=new Date(startOfDay(sel.out)).toISOString(); body.checkInTime=CHECKIN_OPTS[coCheckinIdx].time; }
         else if(sel.in){ body.checkIn=new Date(startOfDay(sel.in)).toISOString(); }
         let r;
@@ -2928,7 +2943,7 @@
     if(!rows)return;
     if(!reqs.length){ if(hdr)hdr.style.display='none'; rows.innerHTML=''; return; }
     if(hdr)hdr.style.display='block';
-    rows.innerHTML=reqs.map(b=>`<div class="res-row" style="align-items:flex-start"><div class="rav" style="background:var(--gold)">${(b.guestDisplay||'G').charAt(0)}</div><div class="ri" style="flex:1"><b>${tr('New request')} · ${b.guestDisplay||tr('Guest')}</b><span>${b.listingTitle||''} · ${b.when||''} · ${b.guestsLabel||''}</span><span style="margin-top:5px;font-size:12.5px;color:var(--muted)">${money(b.total||0)} · ${b.id}</span><div style="margin-top:11px;display:flex;gap:9px;flex-wrap:wrap"><button onclick="respondRequest('${b.id}',true)" style="background:var(--teal);color:#fff;border:none;padding:9px 18px;border-radius:30px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer">${tr('Accept')}</button><button onclick="respondRequest('${b.id}',false)" style="background:#fff;color:#B23A2E;border:1px solid #E6C6C0;padding:9px 18px;border-radius:30px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer">${tr('Decline')}</button><button onclick="messageGuest('${b.id}','${(b.guestDisplay||'Guest').replace(/['\\\\]/g,'')}','${(b.listingTitle||'').replace(/['\\\\]/g,'')}')" class="tmsg" style="align-self:center">${tr('Message guest')}</button></div></div></div>`).join('');
+    rows.innerHTML=reqs.map(b=>`<div class="res-row" style="align-items:flex-start"><div class="rav" style="background:var(--gold)">${(b.guestDisplay||'G').charAt(0)}</div><div class="ri" style="flex:1"><b>${tr('New request')} · ${b.guestDisplay||tr('Guest')}</b><span>${b.listingTitle||''} · ${b.when||''} · ${b.guestsLabel||''}</span>${b.forGuest&&(b.forGuest.name||b.forGuest.phone)?`<span style="margin-top:5px;font-size:12.5px;color:var(--teal)">🧳 ${tr('Staying')}: ${(b.forGuest.name||'').replace(/[<>]/g,'')}${b.forGuest.phone?' · '+(b.forGuest.phone||'').replace(/[<>]/g,''):''}</span>`:''}<span style="margin-top:5px;font-size:12.5px;color:var(--muted)">${money(b.total||0)} · ${b.id}</span><div style="margin-top:11px;display:flex;gap:9px;flex-wrap:wrap"><button onclick="respondRequest('${b.id}',true)" style="background:var(--teal);color:#fff;border:none;padding:9px 18px;border-radius:30px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer">${tr('Accept')}</button><button onclick="respondRequest('${b.id}',false)" style="background:#fff;color:#B23A2E;border:1px solid #E6C6C0;padding:9px 18px;border-radius:30px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer">${tr('Decline')}</button><button onclick="messageGuest('${b.id}','${(b.guestDisplay||'Guest').replace(/['\\\\]/g,'')}','${(b.listingTitle||'').replace(/['\\\\]/g,'')}')" class="tmsg" style="align-self:center">${tr('Message guest')}</button></div></div></div>`).join('');
     if(lang==='so')applyI18n();
   }
   async function respondRequest(id,accept){

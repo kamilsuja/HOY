@@ -1022,7 +1022,11 @@ async function createBooking(res, contact, body, req) {
     const prior = await db.getIdem(idemKey);
     if (prior) { const b = await db.getBooking(prior); return json(res, 200, { ok: true, booking: b, idempotent: true }); }
   }
-  const { listingId, checkIn, checkOut, checkInTime = null, guests = 2, guestChannel, currency = 'USD' } = body;
+  const { listingId, checkIn, checkOut, checkInTime = null, guests = 2, guestChannel, currency = 'USD', forGuestName, forGuestPhone } = body;
+  // "Booking for someone else" (diaspora case): the person actually checking in.
+  const forGuest = (forGuestName || forGuestPhone)
+    ? { name: String(forGuestName || '').trim().slice(0, 80), phone: String(forGuestPhone || '').trim().slice(0, 40) }
+    : null;
   const item = await db.getListing(listingId);
   if (!item) return json(res, 404, { error: 'Listing not found' });
   const isService = item.kind === 'service' || (await db.services()).some((s) => s.id === listingId);
@@ -1057,7 +1061,7 @@ async function createBooking(res, contact, body, req) {
     id: ref, listingId, listingTitle: item.title, city: item.city || item.loc, isExperience, isService,
     host: { id: host.id, name: host.name, email: host.email, phone: host.phone, notify: host.notify, evc: host.evc },
     guestContact: contact, guestChannel: guestChannel || null, when, checkIn: checkIn || null, checkOut: checkOut || null, checkInTime: checkInTime || null,
-    guests, guestsLabel, currency, ...pricing,
+    guests, guestsLabel, currency, forGuest, ...pricing,
     status: instant ? 'held' : 'requested',
     messages: [], createdAt: new Date().toISOString(),
   };
